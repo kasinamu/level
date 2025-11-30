@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'models/layout_preferences.dart';
 import 'models/survey_session.dart';
 import 'screens/data_entry_screen.dart';
 import 'screens/saved_sessions_screen.dart';
@@ -31,15 +32,22 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  bool _fold4Mode = LayoutPreferences.forceFold4Layout;
 
   @override
   Widget build(BuildContext context) {
     final storageService = StorageService();
 
     Future<void> openSaved() async {
-      final session = await Navigator.push<SurveySession?>(
+      final session = await Navigator.push<SurveySession?>( 
         context,
         MaterialPageRoute(
           builder: (_) => SavedSessionsScreen(storageService: storageService),
@@ -104,15 +112,28 @@ class HomePage extends StatelessWidget {
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
-                      '작업을 선택하세요',
+                  children: [
+                    const Text(
+                      '레벨 측량 도구',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      '새로 입력하거나 저장된 작업을 열 수 있고,\n엑셀 가져오기/내보내기 기능도 제공합니다.',
+                    const SizedBox(height: 8),
+                    const Text(
+                      '레벨 측량을 위한 새로운 시작,\n저장된 작업을 불러올 수 있습니다.',
                       style: TextStyle(color: Colors.black54),
+                    ),
+                    const Divider(height: 24),
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('폴드4 화면 맞춤'),
+                      subtitle: const Text('접었을때/펼쳤을때 화면에 맞게 조절'),
+                      value: _fold4Mode,
+                      onChanged: (value) {
+                        setState(() {
+                          _fold4Mode = value;
+                          LayoutPreferences.forceFold4Layout = value;
+                        });
+                      },
                     ),
                   ],
                 ),

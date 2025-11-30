@@ -1,6 +1,14 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:excel/excel.dart';
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../models/layout_preferences.dart';
 import '../models/survey_point.dart';
 import '../models/survey_session.dart';
 import '../services/storage_service.dart';
@@ -187,36 +195,145 @@ class _ResultsScreenState extends State<ResultsScreen> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const Text('계산 결과'),
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: _editInstrumentHeight,
-              icon: const Icon(Icons.edit),
-              label: Text('IH ${_instrumentHeight.toStringAsFixed(3)}'),
-            ),
-            const Spacer(),
-            if (_saving)
-              const Padding(
-                padding: EdgeInsets.only(right: 12),
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-              ),
-            ElevatedButton.icon(
-              onPressed: _saving ? null : _saveResults,
-              icon: const Icon(Icons.save),
-              label: const Text('저장'),
+  Future<void> _exportToExcel() async {
+    final excel = Excel.createExcel();
+    final sheet = excel[excel.getDefaultSheet()!];
+
+    sheet.appendRow([
+      TextCellValue('지점'),
+      TextCellValue('거리'),
+      TextCellValue('계획레벨'),
+      TextCellValue('방향'),
+      TextCellValue('오프셋'),
+      TextCellValue('관측값'),
+      TextCellValue('실측값'),
+      TextCellValue('성토(m)'),
+      TextCellValue('절토(cm)'),
+    ]);
+
+    for (final point in _calculatedPoints) {
+      final difference = point.cutFill(_instrumentHeight);
+      final targetReading = _instrumentHeight - point.calculatedExcavationLevel;
+      String cutFillLabel = '-';
+      if (difference != null) {
+        final diffCm = difference * 100.0;
+        if (difference > 0) {
+          cutFillLabel = '성토 ${diffCm.toStringAsFixed(1)}';
+        } else if (difference < 0) {
+          cutFillLabel = '절토 ${(-diffCm).toStringAsFixed(1)}';
+        } else {
+          cutFillLabel = '0.0';
+        }
+      }
+
+      sheet.appendRow([
+        TextCellValue(point.name),
+        DoubleCellValue(point.station),
+        DoubleCellValue(point.calculatedExcavationLevel),
+        TextCellValue(_directionLabel(point.offsetDirection)),
+        DoubleCellValue(point.calculatedOffset),
+        DoubleCellValue(targetReading),
+        point.observedReading != null
+            ? DoubleCellValue(point.observedReading!)
+            : TextCellValue('-'),
+        difference != null ? DoubleCellValue(difference) : TextCellValue('-'),
+        TextCellValue(cutFillLabel),
+      ]);
+    }
+
+    final fileBytes = excel.save();
+    if (fileBytes == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('엑셀 파일 생성에 실패했습니다.')),
+        );
+      }
+      return;
+    }
+
+    final now = DateTime.now();
+    final formattedDate =
+        '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}';
+    final fileName = 'survey_results_$formattedDate.xlsx';
+    final bytes = Uint8List.fromList(fileBytes);
+
+    try {
+      if (kIsWeb) {
+        await FileSaver.instance.saveFile(
+          name: fileName,
+          bytes: bytes,
+          fileExtension: 'xlsx',
+          mimeType: MimeType.microsoftExcel,
+        );
+      } else {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(bytes, flush: true);
+        await Share.shareXFiles(
+          [
+            XFile(
+              file.path,
+              mimeType:
+                  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             ),
           ],
-        ),
+          text: '레벨 측량 결과를 공유합니다.',
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('엑셀 파일 저장 완료: $fileName')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('엑셀 저장 중 오류: $e')),
+        );
+      }
+    }
+  }
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    const double fold4CoverLogicalWidth = 380; // for 360dp cover width + padding.
+    final bool useFold4Layout =
+        LayoutPreferences.forceFold4Layout || mediaQuery.size.width <= fold4CoverLogicalWidth;
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const SizedBox.shrink(),
+        actions: [
+          TextButton.icon(
+            onPressed: _editInstrumentHeight,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+            ),
+            icon: const Icon(Icons.edit, size: 18),
+            label: Text('IH ${_instrumentHeight.toStringAsFixed(3)}'),
+          ),
+          if (_saving)
+            const Padding(
+              padding: EdgeInsets.only(right: 8),
+              child: SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            ),
+          IconButton(
+            tooltip: '저장',
+            onPressed: _saving ? null : _saveResults,
+            icon: const Icon(Icons.save_outlined, size: 20),
+          ),
+          IconButton(
+            tooltip: '엑셀 저장/공유',
+            onPressed: _exportToExcel,
+            icon: const Icon(Icons.grid_on, size: 20),
+          ),
+        ],
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(12),
@@ -239,13 +356,47 @@ class _ResultsScreenState extends State<ResultsScreen> {
             } else if (difference < 0) {
               arrow = Icons.arrow_downward;
               arrowColor = Colors.red.shade700;
-              cutFillLabel = '절토 ${diffCm.toStringAsFixed(1)}cm';
+              cutFillLabel = '절토 ${(-diffCm).toStringAsFixed(1)}cm';
             } else {
               cutFillLabel = '0.0cm';
             }
           }
 
           final isDone = _completed[index];
+
+          final observedInput = TextFormField(
+            key: ValueKey('observed_${point.name}'),
+            initialValue: point.observedReading?.toString() ?? '',
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            ),
+            keyboardType:
+                const TextInputType.numberWithOptions(decimal: true, signed: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'^-?\d+\.?\d*'))
+            ],
+            onChanged: (value) {
+              setState(() {
+                point.observedReading = double.tryParse(value);
+              });
+            },
+          );
+
+          final Widget cutFillWidget = arrow != null
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(arrow, color: arrowColor, size: 18),
+                    const SizedBox(width: 4),
+                    Text(
+                      cutFillLabel,
+                      style: TextStyle(color: arrowColor, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                )
+              : const Text('-');
 
           return Card(
             margin: const EdgeInsets.symmetric(vertical: 6),
@@ -303,7 +454,7 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     children: [
                       Expanded(
                         child: Text(
-                          '오프셋: ${point.calculatedOffset.toStringAsFixed(3)} (${_directionLabel(point.offsetDirection)})',
+                          '${point.calculatedOffset.toStringAsFixed(3)}(${_directionLabel(point.offsetDirection)})',
                           style: const TextStyle(color: Colors.black87),
                         ),
                       ),
@@ -314,74 +465,75 @@ class _ResultsScreenState extends State<ResultsScreen> {
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(
-                        '관측: ${targetReading.toStringAsFixed(3)}',
-                        style: const TextStyle(
-                            color: Colors.purple, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Row(
+                  if (useFold4Layout)
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '관측 ${targetReading.toStringAsFixed(3)}',
+                          style: const TextStyle(
+                              color: Colors.purple, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
                           children: [
                             const Text(
-                              '실측 관측값',
+                              '실측',
                               style:
                                   TextStyle(fontSize: 12, color: Colors.black54),
                             ),
                             const SizedBox(width: 8),
-                            Flexible(
-                              child: ConstrainedBox(
-                                constraints:
-                                    const BoxConstraints(maxWidth: 120),
-                                child: TextFormField(
-                                  initialValue:
-                                      point.observedReading?.toString() ?? '',
-                                  decoration: const InputDecoration(
-                                    border: OutlineInputBorder(),
-                                    isDense: true,
-                                    contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 8),
+                            Expanded(child: observedInput),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: cutFillWidget,
+                        ),
+                      ],
+                    )
+                  else
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            Text(
+                              '관측 ${targetReading.toStringAsFixed(3)}',
+                              style: const TextStyle(
+                                  color: Colors.purple, fontWeight: FontWeight.bold),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Row(
+                                children: [
+                                  const Text(
+                                    '실측',
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.black54),
                                   ),
-                                  keyboardType:
-                                      const TextInputType.numberWithOptions(
-                                          decimal: true, signed: true),
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.allow(
-                                        RegExp(r'^-?\d+\.?\d*'))
-                                  ],
-                                  onChanged: (value) {
-                                    setState(() {
-                                      point.observedReading =
-                                          double.tryParse(value);
-                                    });
-                                  },
-                                ),
+                                  const SizedBox(width: 8),
+                                  Flexible(
+                                    child: ConstrainedBox(
+                                      constraints:
+                                          const BoxConstraints(maxWidth: 120),
+                                      child: observedInput,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      if (arrow != null)
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(arrow, color: arrowColor, size: 18),
-                            const SizedBox(width: 4),
-                            Text(
-                              cutFillLabel,
-                              style: TextStyle(
-                                  color: arrowColor, fontWeight: FontWeight.bold),
-                            ),
-                          ],
-                        )
-                      else
-                        const Text('-'),
-                    ],
-                  ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: cutFillWidget,
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),

@@ -114,10 +114,17 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
   }
 
   void _selectAll() {
+    // Select text first
     _valueController.selection =
         TextSelection(baseOffset: 0, extentOffset: _valueController.text.length);
+    
+    // If it doesn't have focus, request it after a short delay.
     if (!_fieldFocus.hasFocus) {
-      _fieldFocus.requestFocus();
+      Future.delayed(const Duration(milliseconds: 50), () {
+        if (mounted) { // Check if the widget is still in the tree
+          FocusScope.of(context).requestFocus(_fieldFocus);
+        }
+      });
     }
   }
 
@@ -150,7 +157,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         _currentIndex++;
         _loadCurrentValue();
       });
-      _selectAll();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _selectAll());
       return;
     }
 
@@ -160,7 +167,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         _currentIndex = 0;
         _loadCurrentValue();
       });
-      _selectAll();
+      WidgetsBinding.instance.addPostFrameCallback((_) => _selectAll());
     } else {
       _navigateToResults();
     }
@@ -181,7 +188,7 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
         _loadCurrentValue();
       });
     }
-    _selectAll();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _selectAll());
   }
 
   Future<void> _navigateToResults() async {
@@ -372,7 +379,6 @@ class _DataEntryScreenState extends State<DataEntryScreen> {
                     ],
                     onTap: _selectAll,
                     onFieldSubmitted: (_) => _next(),
-                    onEditingComplete: _next,
                   ),
                 ),
                 const SizedBox(height: 16),
