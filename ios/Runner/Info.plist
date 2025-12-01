@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>기준점 사진을 촬영하여 저장하기 위해 카메라 권한이 필요합니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>촬영한 이미지를 기기 저장소에 보관하기 위해 사진 접근 권한이 필요합니다.</string>
 </dict>
 </plist>

@@ -38,7 +38,7 @@ class _SetupScreenState extends State<SetupScreen> {
   Future<void> _loadSessions() async {
     setState(() => _loadingSessions = true);
     try {
-      final sessions = await _storageService.fetchSessions();
+      final sessions = await _storageService.getSavedSessions();
       if (!mounted) return;
       setState(() {
         _sessions = sessions;

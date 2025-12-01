@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'models/layout_preferences.dart';
 import 'models/survey_session.dart';
 import 'screens/data_entry_screen.dart';
+import 'screens/reference_points_screen.dart';
 import 'screens/saved_sessions_screen.dart';
 import 'screens/setup_screen.dart';
+import 'services/reference_point_service.dart';
 import 'services/storage_service.dart';
 
 void main() async {
@@ -45,6 +47,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final storageService = StorageService();
+    final referencePointService = ReferencePointService();
 
     Future<void> openSaved() async {
       final session = await Navigator.push<SurveySession?>( 
@@ -151,7 +154,22 @@ class _HomePageState extends State<HomePage> {
               onPressed: openSaved,
             ),
             const SizedBox(height: 12),
-            buildButton(
+                        buildButton(
+              icon: Icons.camera_alt,
+              label: '기준점 기록',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ReferencePointsScreen(
+                      service: referencePointService,
+                    ),
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+buildButton(
               icon: Icons.upload_file,
               label: '엑셀 불러오기',
               onPressed: showExcelImport,

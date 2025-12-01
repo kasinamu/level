@@ -107,6 +107,45 @@ class SurveySession {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'instrumentHeight': instrumentHeight,
+      'startPointNum': startPointNum,
+      'endPointNum': endPointNum,
+      'offsetDirection': offsetDirection.name,
+      'phase': phase.name,
+      'currentIndex': currentIndex,
+      'observedReadings': jsonEncode(observedReadings),
+      'completedPoints': jsonEncode(completedPoints.toList()),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+  }
+
+  factory SurveySession.fromMap(Map<String, dynamic> map, List<MainPoint> points) {
+    return SurveySession(
+      id: map['id'] as String,
+      title: map['title'] as String,
+      instrumentHeight: (map['instrumentHeight'] as num).toDouble(),
+      startPointNum: map['startPointNum'] as int,
+      endPointNum: map['endPointNum'] as int,
+      offsetDirection:
+          OffsetDirection.values.firstWhere((d) => d.name == map['offsetDirection']),
+      mainPoints: points,
+      phase: InputPhase.values.firstWhere((p) => p.name == map['phase']),
+      currentIndex: map['currentIndex'] as int,
+      observedReadings: (jsonDecode(map['observedReadings'] as String) as Map<String, dynamic>?)
+              ?.map((key, value) => MapEntry(key, (value as num).toDouble())) ??
+          {},
+      completedPoints: (jsonDecode(map['completedPoints'] as String) as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toSet() ??
+          {},
+      updatedAt: DateTime.parse(map['updatedAt'] as String),
+    );
+  }
+
   static String encodeList(List<SurveySession> sessions) =>
       jsonEncode(sessions.map((s) => s.toJson()).toList());
 

@@ -45,6 +45,28 @@ class MainPoint {
       'excavationLevel': excavationLevel,
     };
   }
+
+  Map<String, dynamic> toMap(String sessionId) {
+    return {
+      'sessionId': sessionId,
+      'name': name,
+      'station': station,
+      'offsetDistance': offsetDistance,
+      'offsetDirection': offsetDirection.name,
+      'excavationLevel': excavationLevel,
+    };
+  }
+
+  factory MainPoint.fromMap(Map<String, dynamic> map) {
+    return MainPoint(
+      name: map['name'] as String,
+      station: (map['station'] as num).toDouble(),
+      offsetDistance: (map['offsetDistance'] as num).toDouble(),
+      offsetDirection:
+          OffsetDirection.values.firstWhere((d) => d.name == map['offsetDirection']),
+      excavationLevel: (map['excavationLevel'] as num).toDouble(),
+    );
+  }
 }
 
 class CalculatedPoint {

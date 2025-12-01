@@ -21,12 +21,12 @@ class _SavedSessionsScreenState extends State<SavedSessionsScreen> {
   @override
   void initState() {
     super.initState();
-    _sessionsFuture = widget.storageService.fetchSessions();
+    _sessionsFuture = widget.storageService.getSavedSessions();
   }
 
   Future<void> _refresh() async {
     setState(() {
-      _sessionsFuture = widget.storageService.fetchSessions();
+      _sessionsFuture = widget.storageService.getSavedSessions();
     });
   }
 
